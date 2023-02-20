@@ -1,9 +1,11 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.dto.MemberDTO;
+import study.querydsl.dto.QMemberDTO;
 import study.querydsl.dto.UserDTO;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
@@ -544,6 +547,153 @@ class QuerydslBasicTest {
         }
 
     }
+
+    @Test
+    void findDtoByQueryProjection() {
+
+        List<MemberDTO> fetch = queryFactory
+                .select(new QMemberDTO(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDTO memberDTO : fetch) {
+            System.out.println("memberDTO = " + memberDTO);
+        }
+
+    }
+
+    @Test
+    void dynamicQueryBooleanBuilder() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+        
+        List<Member> result = searchMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+        
+    }
+
+    private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+
+        BooleanBuilder builder = new BooleanBuilder();
+        if (usernameCond != null) {
+            builder.and(member.username.eq(usernameCond));
+        }
+        if (ageCond != null) {
+            builder.and(member.age.eq(ageCond));
+        }
+
+        return queryFactory.select(member)
+                .from(member)
+                .where(builder)
+                .fetch();
+    }
+
+    @Test
+    void dynamicQueryWhereParam() {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+
+    }
+
+    private List<Member> searchMember2(String usernameParam, Integer ageParam) {
+
+        return queryFactory.select(member)
+                .from(member)
+                .where(usernameEq(usernameParam), ageEq(ageParam))
+                .fetch();
+    }
+
+    private static BooleanExpression ageEq(Integer ageParam) {
+        if (ageParam == null) {
+            return null;
+        }
+        return member.age.eq(ageParam);
+    }
+
+    private static BooleanExpression usernameEq(String usernameParam) {
+        if (usernameParam == null) {
+            return null;
+        }
+        return member.username.eq(usernameParam);
+    }
+
+    @Test
+    void bulkUpdate() {
+
+        //member1 = 10 -->비회원
+        //member2 = 20 -->비회원
+        //member3 = 30 -->유지
+        //member4 = 40 -->유지
+        long count = queryFactory.update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+        List<Member> fetch = queryFactory.select(member)
+                .from(member)
+                .fetch();
+        for (Member member : fetch) {
+            System.out.println("member = " + member);
+        }
+    }
+
+    @Test
+    void bulkAdd() {
+
+        //member1 = 10 -->비회원
+        //member2 = 20 -->비회원
+        //member3 = 30 -->유지
+        //member4 = 40 -->유지
+        long count = queryFactory.update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+    }
+
+    @Test
+    void bulkMultiply() {
+        long count = queryFactory.update(member)
+                .set(member.age, member.age.multiply(2))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+    }
+
+    @Test
+    void bulkDelete() {
+
+        long count = queryFactory
+                .delete(member)
+                .where(member.age.gt(18))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+    }
+
+    @Test
+    void sqlFunctions() {
+        List<String> result = queryFactory.select(Expressions.stringTemplate("function('replace', {0},{1},{2})",
+                        member.username, "member", "M"))
+                .from(member)
+                .fetch();
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
 
 
 }
